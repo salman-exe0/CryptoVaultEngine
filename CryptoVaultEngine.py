@@ -100,8 +100,6 @@ class DataCompressor:
         _generate(root, "")
         return codes
 
-        return codes
-
     def compress(self, text):
         freq = self.build_frequency_table(text)
         root = self.build_huffman_tree(freq)
@@ -123,8 +121,8 @@ class DataCompressor:
         binary_str = ""
         for byte in compressed_bytes:
             binary_str += format(byte, "08b")
-            if padding > 0:
-                binary_str = binary_str[:-padding]
+        if padding > 0:
+            binary_str = binary_str[:-padding]
         reverse_codes = {v: k for k, v in codes.items()}
         text = ""
         current = ""
@@ -169,14 +167,15 @@ class VaultController:
         comp_bytes, padding, codes = self.compressor.compress(text)
         key_hash = self.security_engine.hash_password(password)
         encrypted = self.security_engine.encrypt(comp_bytes, key_hash)
-        header = {"padding": padding, "pass_check": key_hash[:16]}
+        original_extension = os.path.splitext(file_path)[1]
+        header = {"padding": padding, "pass_check": key_hash[:16], "original_extension": original_extension}
         vault_path = self.file_handler.writeVaultFile(
             file_path, header, codes, encrypted
         )
         print(f"File Locked: {vault_path}")
 
     def unlock(self, vault_path, password):
-        header, codes, payload = self.file_handler.readVaultFile(vault_path)
+        header, codes, payload = self.file_handler.read_vault_file(vault_path)
         if header is None:
             return
         key_hash = self.security_engine.hash_password(password)
@@ -185,8 +184,9 @@ class VaultController:
             return
         decrypted = self.security_engine.decrypt(payload, key_hash)
         original_text = self.compressor.decompress(decrypted, header["padding"], codes)
-        output_path = vault_path.replace(self.file_handler.vault_extension, ".txt")
-        self.file_handler.writeDecodedFile(output_path, original_text)
+        original_extension = header.get("original_extension", ".txt")  # fallback to .txt if not found
+        output_path = vault_path.replace(self.file_handler.vault_extension, original_extension)
+        self.file_handler.write_decoded_file(output_path, original_text)
         print(f"File Unlocked: {output_path}")
 
     def run(self):
